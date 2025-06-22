@@ -28,21 +28,33 @@ exports.connect = async () => {
     try {
       const code = await sock.requestPairingCode(numeroBot);
       console.log(`🔑 Código de pareamento do número ${numeroBot}: ${code}`);
+      console.log("⏳ Você tem 1 minuto para conectar no WhatsApp...");
     } catch (err) {
       console.error("Erro ao gerar código de pareamento:", err.message);
-      process.exit(1); // Sai do processo em caso de erro
+      process.exit(1);
     }
+
+    let conectado = false;
 
     sock.ev.on("connection.update", (update) => {
       const { connection } = update;
-
       if (connection === "open") {
         console.log("✅ Pareamento concluído, bot iniciando...");
+        conectado = true;
         startBot();
       }
     });
 
     sock.ev.on("creds.update", saveCreds);
+
+    // Timer de 1 minuto, se não conectar, reinicia o processo
+    setTimeout(() => {
+      if (!conectado) {
+        console.log("⚠️ Tempo esgotado! Reiniciando processo de pareamento...");
+        exports.connect();
+      }
+    }, 60 * 1000);
+
   } else {
     startBot();
   }
