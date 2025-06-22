@@ -5,19 +5,10 @@ const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
 } = require("@whiskeysockets/baileys");
-const readline = require("readline");
 const pino = require("pino");
 const { handleCommands } = require("./core/handleCommands.js");
 const { participantsUpdate } = require("./core/participantsUpdate.js");
 const config = require("./config/bot.config.js");
-
-const question = (string) => {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => rl.question(string, (ans) => {
-    rl.close();
-    resolve(ans);
-  }));
-};
 
 exports.connect = async () => {
   const { state, saveCreds } = await useMultiFileAuthState(
@@ -35,17 +26,19 @@ exports.connect = async () => {
     markOnlineOnConnect: true,
   });
 
-  // Solicita pareamento se for a primeira vez
   if (!sock.authState.creds.registered) {
-    let phoneNumber = await question("Informe o seu número de telefone: ");
-    phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
+    const numeroBot = config.bot.replace(/[^0-9]/g, ""); // Limpa o número só com dígitos
 
-    if (!phoneNumber) {
-      throw new Error("Número de telefone inválido!");
+    if (!numeroBot) {
+      throw new Error("Número do bot não configurado corretamente em bot.config.js!");
     }
 
-    const code = await sock.requestPairingCode(phoneNumber);
-    console.log("🔑 Código de pareamento:", code);
+    try {
+      const code = await sock.requestPairingCode(numeroBot);
+      console.log(`🔑 Código de pareamento do número ${numeroBot}: ${code}`);
+    } catch (err) {
+      console.error("Erro ao gerar código de pareamento:", err.message);
+    }
   }
 
   sock.ev.on("connection.update", (update) => {
@@ -71,7 +64,6 @@ exports.connect = async () => {
 
   sock.ev.on("creds.update", saveCreds);
 
-  // Inicializa módulos principais
   handleCommands(sock);
   participantsUpdate(sock);
 
