@@ -1,14 +1,22 @@
 const fs = require("fs");
 const path = require("path");
-const comandosPath = path.join(__dirname, "..", "comandos");
-const comandos = [];
+const { prefixo } = require("../config/bot.config");
 
-fs.readdirSync(comandosPath).forEach(file => {
-  const cmd = require(path.join(comandosPath, file));
-  comandos.push(cmd);
+const comandosGrupos = [];
+const comandosPv = [];
+
+const gruposPath = path.join(__dirname, "..", "comandos", "grupos");
+const pvPath = path.join(__dirname, "..", "comandos", "pv");
+
+fs.readdirSync(gruposPath).forEach(file => {
+  const cmd = require(path.join(gruposPath, file));
+  comandosGrupos.push(cmd);
 });
 
-const { prefixo } = require("../config/bot.config");
+fs.readdirSync(pvPath).forEach(file => {
+  const cmd = require(path.join(pvPath, file));
+  comandosPv.push(cmd);
+});
 
 module.exports.handleCommands = (sock) => {
   sock.ev.on("messages.upsert", async (msg) => {
@@ -21,13 +29,27 @@ module.exports.handleCommands = (sock) => {
     if (!text.startsWith(prefixo)) return;
 
     const comando = text.slice(1).split(" ")[0].toLowerCase();
+    const from = m.key.remoteJid;
 
-    const encontrado = comandos.find(cmd => cmd.comando === comando);
-    if (encontrado) {
-      try {
-        await encontrado.exec(sock, m);
-      } catch (err) {
-        console.log(`Erro no comando ${comando}:`, err.message);
+    const isGroup = from.endsWith("@g.us");
+
+    if (isGroup) {
+      const encontrado = comandosGrupos.find(cmd => cmd.comando === comando);
+      if (encontrado) {
+        try {
+          await encontrado.exec(sock, m);
+        } catch (err) {
+          console.log(`Erro no comando ${comando} (grupo):`, err.message);
+        }
+      }
+    } else {
+      const encontrado = comandosPv.find(cmd => cmd.comando === comando);
+      if (encontrado) {
+        try {
+          await encontrado.exec(sock, m);
+        } catch (err) {
+          console.log(`Erro no comando ${comando} (PV):`, err.message);
+        }
       }
     }
   });
