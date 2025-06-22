@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const pino = require("pino");
+const readline = require("readline");
 const {
   default: makeWASocket,
   DisconnectReason,
@@ -9,22 +10,19 @@ const {
 } = require("@whiskeysockets/baileys");
 const { handleCommands } = require("./core/handleCommands.js");
 const { participantsUpdate } = require("./core/participantsUpdate.js");
-const { showBanner, startBannerLoop } = require("./src/utils/terminal.js");
 const config = require("./config/bot.config.js");
 
-let botStatus = 'Iniciando...';
+// Pergunta no terminal (se quiser usar em alguma parte, já tá pronto)
+const question = (string) => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(string, (ans) => {
+    rl.close();
+    resolve(ans);
+  }));
+};
 
 exports.connect = async () => {
   const authPath = path.resolve(__dirname, ".", "assets", "auth", "creds");
-
-  // Mostrar banner inicial
-  showBanner(botStatus);
-  startBannerLoop(() => botStatus);
-
-  if (!fs.existsSync(authPath)) {
-    console.log("🔑 Nenhuma credencial encontrada! Inicie o pareamento.");
-  }
-
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   const { version } = await fetchLatestBaileysVersion();
   const numeroBot = config.bot.replace(/[^0-9]/g, "");
@@ -52,7 +50,7 @@ exports.connect = async () => {
     sock.ev.on("connection.update", (update) => {
       const { connection } = update;
       if (connection === "open") {
-        console.log("✅ Pareamento concluído, iniciando o bot...");
+        console.log("✅ Pareamento concluído, bot iniciando...");
         conectado = true;
         startBot(state, saveCreds, version);
       }
@@ -60,7 +58,7 @@ exports.connect = async () => {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Timer de 1 minuto pra conectar, se não reinicia
+    // Timer de 1 minuto, se não conectar reinicia
     setTimeout(() => {
       if (!conectado) {
         console.log("⚠️ Tempo esgotado! Reiniciando processo de pareamento...");
@@ -83,16 +81,10 @@ function startBot(state, saveCreds, version) {
     markOnlineOnConnect: true,
   });
 
-  botStatus = 'Conectando...';
-  showBanner(botStatus);
-
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
 
     if (connection === "close") {
-      botStatus = 'Reconectando...';
-      showBanner(botStatus);
-
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
 
@@ -102,9 +94,6 @@ function startBot(state, saveCreds, version) {
         exports.connect();
       }
     } else if (connection === "open") {
-      botStatus = 'Conectado';
-      showBanner(botStatus);
-
       console.log("✅ Bot conectado com sucesso!");
       console.log(`👑 Dono: ${config.dono}`);
       console.log(`🤖 Bot: ${config.bot}`);
