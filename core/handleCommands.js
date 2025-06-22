@@ -21,7 +21,7 @@ fs.readdirSync(pvPath).forEach(file => {
 });
 
 // Importa o de saudação separadamente
-const saudacao = require("../comandos/pv/saudacao");
+const saudacao = require("../comandos/pv/saudacao.js");
 
 module.exports.handleCommands = (sock) => {
   sock.ev.on("messages.upsert", async (msg) => {
