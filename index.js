@@ -15,6 +15,8 @@ exports.connect = async () => {
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   const { version } = await fetchLatestBaileysVersion();
 
+  const numeroBot = config.bot.replace(/[^0-9]/g, "");
+
   const sock = makeWASocket({
     printQRInTerminal: false,
     version,
@@ -24,10 +26,7 @@ exports.connect = async () => {
     markOnlineOnConnect: true,
   });
 
-  // Se ainda não estiver pareado, gera o código 1 vez e aguarda
   if (!sock.authState.creds.registered) {
-    const numeroBot = config.bot.replace(/[^0-9]/g, "");
-
     try {
       const code = await sock.requestPairingCode(numeroBot);
       console.log(`🔑 Código de pareamento do número ${numeroBot}: ${code}`);
@@ -43,10 +42,10 @@ exports.connect = async () => {
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
 
-      console.log("⚠️ Conexão fechada. Tentando reconectar...", shouldReconnect);
+      console.log("Conexão fechada:", lastDisconnect?.error?.message || "sem erro", "↻ Reconnect?", shouldReconnect);
 
       if (shouldReconnect) {
-        exports.connect();
+        this.connect();
       }
     } else if (connection === "open") {
       console.log("✅ Bot conectado com sucesso!");
@@ -55,13 +54,15 @@ exports.connect = async () => {
       console.log(`📍 Prefixo: ${config.prefixo}`);
       console.log(`📦 Versão: ${config.versao}`);
 
-      // Só inicia comandos e eventos depois de estar conectado
+      // Inicia comandos e eventos só depois da conexão
       handleCommands(sock);
       participantsUpdate(sock);
     }
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  return sock;
 };
 
 this.connect();
