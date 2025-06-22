@@ -11,12 +11,43 @@ const { participantsUpdate } = require("./core/participantsUpdate.js");
 const config = require("./config/bot.config.js");
 
 exports.connect = async () => {
-  const { state, saveCreds } = await useMultiFileAuthState(
-    path.resolve(__dirname, ".", "assets", "auth", "creds")
-  );
-
+  const authPath = path.resolve(__dirname, ".", "assets", "auth", "creds");
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
   const { version } = await fetchLatestBaileysVersion();
 
+  if (!state.creds.registered) {
+    const tempSock = makeWASocket({
+      printQRInTerminal: false,
+      version,
+      logger: pino({ level: "silent" }),
+      auth: state,
+      browser: ["Bot WA", "Chrome", "1.0.0"],
+    });
+
+    const numeroBot = config.bot.replace(/[^0-9]/g, "");
+
+    try {
+      const code = await tempSock.requestPairingCode(numeroBot);
+      console.log(`🔑 Código de pareamento do número ${numeroBot}: ${code}`);
+    } catch (err) {
+      console.error("Erro ao gerar código de pareamento:", err.message);
+    }
+
+    // Espera o usuário parear manualmente
+    tempSock.ev.on("connection.update", (update) => {
+      const { connection } = update;
+      if (connection === "open") {
+        console.log("✅ Pareamento concluído, iniciando o bot...");
+        startBot(state, saveCreds, version);
+      }
+    });
+
+  } else {
+    startBot(state, saveCreds, version);
+  }
+};
+
+function startBot(state, saveCreds, version) {
   const sock = makeWASocket({
     printQRInTerminal: false,
     version,
@@ -25,21 +56,6 @@ exports.connect = async () => {
     browser: ["Bot WA", "Chrome", "1.0.0"],
     markOnlineOnConnect: true,
   });
-
-  if (!sock.authState.creds.registered) {
-    const numeroBot = config.bot.replace(/[^0-9]/g, ""); // Limpa o número só com dígitos
-
-    if (!numeroBot) {
-      throw new Error("Número do bot não configurado corretamente em bot.config.js!");
-    }
-
-    try {
-      const code = await sock.requestPairingCode(numeroBot);
-      console.log(`🔑 Código de pareamento do número ${numeroBot}: ${code}`);
-    } catch (err) {
-      console.error("Erro ao gerar código de pareamento:", err.message);
-    }
-  }
 
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
@@ -51,7 +67,7 @@ exports.connect = async () => {
       console.log("⚠️ Conexão fechada. Tentando reconectar...", shouldReconnect);
 
       if (shouldReconnect) {
-        this.connect();
+        exports.connect();
       }
     } else if (connection === "open") {
       console.log("✅ Bot conectado com sucesso!");
@@ -63,11 +79,8 @@ exports.connect = async () => {
   });
 
   sock.ev.on("creds.update", saveCreds);
-
   handleCommands(sock);
   participantsUpdate(sock);
-
-  return sock;
-};
+}
 
 this.connect();
